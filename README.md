@@ -13,7 +13,7 @@ This guide documents the setup and troubleshooting process for running PX4 on th
 - [Micro XRCE-DDS Agent](https://micro-xrce-dds.docs.eprosima.com/)
 - [QGroundControl Install](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html)
 
-> 📚 **Tip:** If you're new to ROS 2 or Linux, check out the [Command Summary](#command-summary) at the end of this guide to get familiar with the terminal commands used throughout.
+> 📚 **Tip:** If you're new to ROS 2 or Linux, check out the [Command Summary](#-command-summary) at the end of this guide to get familiar with the terminal commands used throughout.
 
   
 
