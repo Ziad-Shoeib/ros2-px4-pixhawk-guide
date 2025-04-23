@@ -360,6 +360,7 @@ ____________________________________________________________
 * Hardware help
 	https://docs.px4.io/main/en/middleware/uxrce_dds.html#starting-agent-and-client
 	https://docs.px4.io/main/en/modules/modules_system.html#uxrce-dds-client
+	https://docs.px4.io/main/en/middleware/uxrce_dds.html
 	https://docs.px4.io/main/en/peripherals/serial_configuration.html#serial-port-configuration
 	https://docs.px4.io/main/en/companion_computer/pixhawk_companion.html#serial-port-setup
 	https://docs.px4.io/main/en/peripherals/mavlink_peripherals.html
@@ -367,6 +368,7 @@ ____________________________________________________________
 	https://github.com/eProsima/Micro-XRCE-DDS-Agent/tree/master
 	https://micro-xrce-dds.docs.eprosima.com/en/latest/introduction.html
 	https://micro-xrce-dds.docs.eprosima.com/en/latest/client.html
+	https://docs.px4.io/main/en/concept/architecture.html
 	
 	https://github.com/mavlink/mavros/blob/ros2/mavros/README.md
 	https://www.youtube.com/watch?v=e3Ev4LYxzPk
@@ -429,6 +431,8 @@ When running gazebo from PX4 file I even get the same previous problem of no con
 	    -D/--dev <value>.  * CAN FD (canfd)
 	    -D/--dev <value>.
 
+________________________________
+
 -- What to do 10/4/2025 --
 
 - from: https://docs.px4.io/main/en/middleware/uxrce_dds.html#architecture :
@@ -451,6 +455,7 @@ When running gazebo from PX4 file I even get the same previous problem of no con
 	- uXRCE-DDS port: UXRCE_DDS_CFG,
 	- Configuration Parameter Missing from QGroundControl: QGroundControl only displays the parameters for services/drivers that are present in firmware. If a parameter is missing, then you may need to add it in firmware.
 
+________________________
 1) I am not sure that if I need to write a custom code to publish the topics to the listener or what, but the documentation till now is not clear on the exact steps I need to do	
 2) maybe investigate using Mavros with ros2    
 

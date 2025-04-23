@@ -1,7 +1,8 @@
 # ros2-px4-pixhawk-guide	
 
 ## Overview
-This guide documents the setup and troubleshooting process for running PX4 on the Pixhawk V5+ and Pixhawk V6X with ROS 2 (Humble), including both simulation and hardware interfacing via micro-ROS.
+This guide documents the setup and troubleshooting process for running PX4 on the Pixhawk V5+ and Pixhawk V6X with ROS 2 (Humble), including both simulation and hardware interfacing via micro-ROS. 
+We Stopped at the step of [Starting the Client](#starting-the-client-incomplete) and did not find a solution unfortunately.
 
 ## Prerequisites
 - Ubuntu 22.04
@@ -411,7 +412,9 @@ colcon build
 source install/setup.bash
 ```
 
-#### PX4_off_board Example
+#### (Optional.....)
+
+#### (Optional) PX4_off_board Example
 This is an extra example to play a bit with the simulation that should control the drone via the keyboard in gazebo. Following this [tutorial video](https://www.youtube.com/watch?v=8gKIP0OqHdQ) and its corresponding [github repo](https://github.com/ARK-Electronics/ROS2_PX4_Offboard_Example).
 
 Setup Steps:
@@ -472,10 +475,133 @@ When closing the simulation, it is very tempting to just close the terminal wind
 
 ---
 
-## Using Flight Controller Hardware
+## Using Flight Controller Hardware with ROS
+ROS 2 with PX4 running on a flight controller is almost the same as working with PX4 on the simulator. The only difference is that you need to start both the agent and the client, with settings appropriate for the communication channel.
+
+### Starting the Serial Agent
+From [PX4-UXRCE-DDS Gudie](https://docs.px4.io/main/en/middleware/uxrce_dds.html#starting-agent-and-client): "The agent is used to connect to the client over a particular channel, such as UDP or a serial connection. The channel settings are specified when the agent is started, using command line options. These are documented in the eProsima user guide: [Micro XRCE-DDS Agent > Agent CLI](https://micro-xrce-dds.docs.eprosima.com/en/latest/agent.html#agent-cli). Note that the agent supports many channel options, but PX4 only supports UDP and serial connections."
+
+For example, the PX4 simulator runs the uXRCE-DDS client over UDP on port 8888, so to connect to the simulator you would start the agent with the command:
+```bash
+MicroXRCEAgent udp4 -p 8888
+```
+
+When working with real hardware, the setup depends on the hardware, OS, and channel. For example if you are using Serial: 
+```bash
+sudo MicroXRCEAgent serial --dev /dev/ACM0 -b 921600 # Replace ACM0 with port Address
+```
+We were succesful in starting the agent.
+![Serial Agent](assets/serial_agent.png)
+
+For more information about setting up communications channels see Pixhawk + Companion Setup > Serial Port setup, and sub-documents.
+
+> **Info:** or more information about setting up communications channels see [Pixhawk + Companion Setup > Serial Port setup](https://docs.px4.io/main/en/companion_computer/pixhawk_companion.html#serial-port-setup), and sub-documents.
+
+### Editing the sensor_combined_listener launch file
+After Starting the Serial Agent, We Tried to start the same [listener launch file] ([sensor_combined_listener.launch.py](https://github.com/PX4/px4_ros_com/blob/main/launch/sensor_combined_listener.launch.py)) in which we found the code as follows:
+``` python
+from launch import LaunchDescription
+from launch_ros.actions import Node
+from launch.actions import ExecuteProcess
+
+def generate_launch_description():
+
+    micro_ros_agent = ExecuteProcess(
+        cmd=[[
+            'micro-ros-agent udp4 --port 8888 -v '
+        ]],
+        shell=True
+    )
+
+    sensor_combined_listener_node = Node(
+        package='px4_ros_com',
+        executable='sensor_combined_listener',
+        output='screen',
+        shell=True,
+    )
+
+    return LaunchDescription([
+        #micro_ros_agent,
+        sensor_combined_listener_node
+    ])
+```
+We tried to replace:
+```python
+'micro-ros-agent udp4 --port 8888 -v '
+```
+With:
+```python
+MicroXRCEAgent serial --dev /dev/ACM0 -b 921600
+```
+Or:
+```python
+micro-ros-agent --dev /dev/ACM0 -b 921600
+```
+
+But failed to see any ros topics when the launch file is being run. We found that the problem is that in simulation the `UDP` Clinet is started automatically via MAVlink, and we need to start the client in a different way.
 
 
-## Summary of our Findings
+### Starting the Client (Incomplete)
+We Tried proceeding with several steps but failed t find one succsful solution, so here it is more of a discussion of some information that might be helpful.
+
+#### Using [This PX4-DDS Gudie](https://docs.px4.io/main/en/middleware/uxrce_dds.html#starting-agent-and-client):
+The configuration can be done using the [UXRCE-DDS parameters](https://docs.px4.io/main/en/advanced_config/parameter_reference.html#uxrce-dds-client):
+- UXRCE_DDS_CFG: Set the port to connect on, such as `TELEM2`, `Ethernet`, or `Wifi`.
+- If using an Serial Connection:
+  - [SER_TEL2_BAUD](https://docs.px4.io/main/en/advanced_config/parameter_reference.html#SER_TEL2_BAUD), [SER_URT6_BAUD](https://docs.px4.io/main/en/advanced_config/parameter_reference.html#SER_URT6_BAUD) (and so on): Use the `_BAUD` parameter associated with the serial port to set the baud rate. For example, you'd set a value for `SER_TEL2_BAUD` if you are connecting to the companion using `TELEM2`. For more information see [Serial port configuration](https://docs.px4.io/main/en/peripherals/serial_configuration.html#serial-port-configuration).
+- Many ports are already have a default configuration. To use these ports you must first disable the existing configuration:
+  - `TELEM1` and `TELEM2` are set up by default to connect via MAVLink to a GCS and a companion computer (respectively). Disable by setting [MAV_0_CONFIG=0](https://docs.px4.io/main/en/advanced_config/parameter_reference.html#MAV_0_CONFIG) or [MAV_1_CONFIG=0](https://docs.px4.io/main/en/advanced_config/parameter_reference.html#MAV_1_CONFIG) to zero. See [MAVLink Peripherals](https://docs.px4.io/main/en/peripherals/mavlink_peripherals.html) for more information.
+  - **Actually This point is one of the clues to solving disabling the MAVLink automatic client**
+- Once set, you may need to reboot PX4 for the parameters to take effect. They will then persist through subsequent reboots.
+  
+You can also start the [uxrce_dds_client]() using a command line. This can be called as part of [System Startup]() or through the MAVLink Shell (or a system console). This method is useful when you need to set a custom client namespace, as no parameter is provided for this purpose. For example, the following command can be used to connect via Ethernet to a remote host at `192.168.0.100:8888` and to set the client namespace to `/drone/`.
+```bash
+uxrce_dds_client start -t udp -p 8888 -h 192.168.0.100 -n drone
+```
+Options `-p` or `-h` are used to bypass `UXRCE_DDS_PRT` and `UXRCE_DDS_AG_IP`.
+
+**We Tried to use this command but didn't find the `uxrce_dds_client_start` command**
+
+Also we tried to see if any similar commands can be found with `MicroXRCEAgent` but did not find clues to this:
+```bash
+MicroXRCEAgent -h
+	Usage: 'MicroXRCEAgent <udp4|udp6|tcp4|tpc6|canfd|serial|multiserial|pseudoterminal> <<args>>'
+
+	Available arguments (per transport):
+	  * COMMON
+	    -h/--help.
+	    -m/--middleware <value> (ced, dds, rtps) [default: 'dds'].
+	    -r/--refs <value>.
+	    -v/--verbose <value> ( - ) [default: ''].
+	    -d/--discovery <value> [default: '7400'].
+	    -P/--p2p <value>.
+	  * IPvX (udp4, udp6, tcp4, tcp6)
+	    -p/--port <value>.
+	  * SERIAL (serial, multiserial, pseudoterminal)
+	    -b/--baudrate <value> [default: '115200'].
+	    -D/--dev <value>.  * CAN FD (canfd)
+	    -D/--dev <value>.
+
+```
+
+### Ideas to Proceed with Solving the Client Problem
+
+
+### Useful Resources in Hardware-ROS Communication
+- [uXRCE-DDS (PX4-ROS 2/DDS Bridge)](https://docs.px4.io/main/en/middleware/uxrce_dds.html#starting-agent-and-client)
+- [uxrce_dds_client](https://docs.px4.io/main/en/modules/modules_system.html#uxrce-dds-client)
+- [Serial Port Configuration](https://docs.px4.io/main/en/peripherals/serial_configuration.html#serial-port-configuration)
+- [Using a Companion Computer with Pixhawk Controllers](https://docs.px4.io/main/en/companion_computer/pixhawk_companion.html#serial-port-setup)
+- [MAVLink Peripherals (GCS/OSD/Companion)](https://docs.px4.io/main/en/peripherals/mavlink_peripherals.html)
+- [Serial Port Mapping](https://docs.px4.io/main/en/hardware/serial_port_mapping.html)	
+- [Micro-XRCE-DDS-Agent Source Code](https://github.com/eProsima/Micro-XRCE-DDS-Agent/tree/master)
+- [Micro-XRCE-DDS Documentation](https://micro-xrce-dds.docs.eprosima.com/en/latest/introduction.html)
+- [Micro-XRCE-DDS Client Documentation](https://micro-xrce-dds.docs.eprosima.com/en/latest/client.html)
+- [PX4 Architectural Overview](https://docs.px4.io/main/en/concept/architecture.html)
+- [MAVROS](https://github.com/mavlink/mavros/blob/ros2/mavros/README.md)
+- [Connecting Pixhwak with ROS using Mavros | HWRS 4](https://www.youtube.com/watch?v=e3Ev4LYxzPk)
+- [How to connect Pixhawk 6c Drone to Raspberry Pi | Mavlink | Ardupilot | Mission Planner | PX4](https://www.youtube.com/watch?v=u-NOD0PegwA)
+
 
 
 ---
